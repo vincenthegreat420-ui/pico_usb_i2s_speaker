@@ -2,26 +2,27 @@ name: Build Pico USB I2S Speaker
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "master" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "master" ]
+  workflow_dispatch: # Добавляет кнопку ручного запуска во вкладке Actions
 
 jobs:
-  build: 
+  build:
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
-        submodules: true  # Важно: скачивает встроенный SDK от Raspberry Pi
+        submodules: true
 
     - name: Install dependencies
       run: |
         sudo apt update
         sudo apt install -y cmake gcc-arm-none-eabi libnewlib-arm-none-eabi build-essential
 
-    # Хак: меняем пины в исходном коде под RP2040-Zero перед компиляцией
+    # Хак: переназначаем пины под RP2040-Zero (2, 3, 4, 5) прямо перед компиляцией
     - name: Remap Pins for RP2040-Zero
       run: |
         sed -i 's/#define PICO_AUDIO_I2S_DATA_PIN.*/#define PICO_AUDIO_I2S_DATA_PIN (2)/g' src/pico_audio_i2s_config.h || true
@@ -29,7 +30,6 @@ jobs:
         sed -i 's/#define PICO_AUDIO_I2S_BCLK_PIN.*/#define PICO_AUDIO_I2S_BCLK_PIN (4)/g' src/pico_audio_i2s_config.h || true
         sed -i 's/#define PICO_AUDIO_I2S_MCLK_PIN.*/#define PICO_AUDIO_I2S_MCLK_PIN (5)/g' src/pico_audio_i2s_config.h || true
         
-        # На всякий случай проверяем другие файлы конфигурации, если они есть
         find . -name "*.h" -type f -exec sed -i 's/GPIO18/2/g' {} + || true
         find . -name "*.h" -type f -exec sed -i 's/GPIO20/3/g' {} + || true
         find . -name "*.h" -type f -exec sed -i 's/GPIO21/4/g' {} + || true
