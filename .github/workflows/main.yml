@@ -1,0 +1,49 @@
+name: Build Pico USB I2S Speaker
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: true  # Важно: скачивает встроенный SDK от Raspberry Pi
+
+    - name: Install dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y cmake gcc-arm-none-eabi libnewlib-arm-none-eabi build-essential
+
+    # Хак: меняем пины в исходном коде под RP2040-Zero перед компиляцией
+    - name: Remap Pins for RP2040-Zero
+      run: |
+        sed -i 's/#define PICO_AUDIO_I2S_DATA_PIN.*/#define PICO_AUDIO_I2S_DATA_PIN (2)/g' src/pico_audio_i2s_config.h || true
+        sed -i 's/#define PICO_AUDIO_I2S_LROUT_PIN.*/#define PICO_AUDIO_I2S_LROUT_PIN (3)/g' src/pico_audio_i2s_config.h || true
+        sed -i 's/#define PICO_AUDIO_I2S_BCLK_PIN.*/#define PICO_AUDIO_I2S_BCLK_PIN (4)/g' src/pico_audio_i2s_config.h || true
+        sed -i 's/#define PICO_AUDIO_I2S_MCLK_PIN.*/#define PICO_AUDIO_I2S_MCLK_PIN (5)/g' src/pico_audio_i2s_config.h || true
+        
+        # На всякий случай проверяем другие файлы конфигурации, если они есть
+        find . -name "*.h" -type f -exec sed -i 's/GPIO18/2/g' {} + || true
+        find . -name "*.h" -type f -exec sed -i 's/GPIO20/3/g' {} + || true
+        find . -name "*.h" -type f -exec sed -i 's/GPIO21/4/g' {} + || true
+        find . -name "*.h" -type f -exec sed -i 's/GPIO22/5/g' {} + || true
+
+    - name: Run CMake and Build
+      run: |
+        mkdir build
+        cd build
+        cmake ..
+        make -j$(nproc)
+
+    - name: Upload UF2 Firmware
+      uses: actions/upload-artifact@v4
+      with:
+        name: rp2040-zero-i2s-firmware
+        path: build/*.uf2
