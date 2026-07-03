@@ -22,12 +22,12 @@ jobs:
         sudo apt update
         sudo apt install -y cmake gcc-arm-none-eabi libnewlib-arm-none-eabi build-essential git
 
-    # Теперь ссылка полная и правильная
+    # Ссылка исправлена на полную и рабочую
     - name: Fetch Pico SDK
       run: |
         git clone --depth 1 --recursive https://github.com $HOME/pico-sdk
 
-    # Меняем пины (18, 20, 21, 22) на новые (2, 3, 4, 5)
+    # Меняем пины на новые (2, 3, 4, 5)
     - name: Remap Pins for RP2040-Zero
       run: |
         find . -name "*.h" -type f -exec sed -i 's/GPIO18/2/g' {} + || true
