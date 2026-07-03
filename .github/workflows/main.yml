@@ -1,4 +1,4 @@
-name: Build Pico USB I2S Speaker
+name: Build Pico USB I2S Speaker 32-Bit
 
 on:
   push:
@@ -22,9 +22,10 @@ jobs:
         sudo apt update
         sudo apt install -y cmake gcc-arm-none-eabi libnewlib-arm-none-eabi build-essential
 
-    # Хак: автоматически меняем пины на новые (2, 3, 4, 5) во всех файлах проекта
-    - name: Remap Pins for RP2040-Zero
+    # Переназначаем пины под RP2040-Zero и намертво врубаем режим 32-бит
+    - name: Remap Pins and Force 32-Bit I2S
       run: |
+        # 1. Меняем пины на наши удобные (2, 3, 4, 5)
         find . -name "*.h" -type f -exec sed -i 's/GPIO18/2/g' {} + || true
         find . -name "*.h" -type f -exec sed -i 's/GPIO20/3/g' {} + || true
         find . -name "*.h" -type f -exec sed -i 's/GPIO21/4/g' {} + || true
@@ -35,7 +36,16 @@ jobs:
         find . -name "*.h" -type f -exec sed -i 's/PICO_AUDIO_I2S_BCLK_PIN.*/PICO_AUDIO_I2S_BCLK_PIN (4)/g' {} + || true
         find . -name "*.h" -type f -exec sed -i 's/PICO_AUDIO_I2S_MCLK_PIN.*/PICO_AUDIO_I2S_MCLK_PIN (5)/g' {} + || true
 
-    # Сборщик сам скачает нужный Pico SDK через флаг FETCH_FROM_GIT
+        # 2. Хак для переключения TinyUSB в режим 32-бит
+        find . -name "tusb_config.h" -type f -exec sed -i 's/CFG_TUD_AUDIO_FUNC_MIN_BITS_PER_SAMPLE.*/CFG_TUD_AUDIO_FUNC_MIN_BITS_PER_SAMPLE 32/g' {} + || true
+        find . -name "tusb_config.h" -type f -exec sed -i 's/CFG_TUD_AUDIO_FUNC_MAX_BITS_PER_SAMPLE.*/CFG_TUD_AUDIO_FUNC_MAX_BITS_PER_SAMPLE 32/g' {} + || true
+        find . -name "usb_descriptors.c" -type f -exec sed -i 's/0x10, 0x10/0x20, 0x20/g' {} + || true
+        find . -name "usb_descriptors.c" -type f -exec sed -i 's/16, 16/32, 32/g' {} + || true
+        
+        # 3. Принудительно ставим стандартный формат I2S (Output mode = 0)
+        find . -name "*.h" -type f -exec sed -i 's/#define OUTPUT_MODE.*/#define OUTPUT_MODE 0/g' {} + || true
+        find . -name "*.c" -type f -exec sed -i 's/output_mode =.*/output_mode = 0;/g' {} + || true
+
     - name: Run CMake and Build
       run: |
         mkdir build
@@ -46,5 +56,5 @@ jobs:
     - name: Upload UF2 Firmware
       uses: actions/upload-artifact@v4
       with:
-        name: rp2040-zero-i2s-firmware
+        name: rp2040-zero-i2s-firmware-32bit
         path: build/*.uf2
