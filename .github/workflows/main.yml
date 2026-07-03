@@ -2,10 +2,10 @@ name: Build Pico USB I2S Speaker
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [ "main", "master", "develop" ]
   pull_request:
-    branches: [ "main", "master" ]
-  workflow_dispatch: # Добавляет кнопку ручного запуска во вкладке Actions
+    branches: [ "main", "master", "develop" ]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -15,31 +15,39 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
-        submodules: true
+        submodules: 'recursive'  # Скачивает вообще все вложенные зависимости
 
     - name: Install dependencies
       run: |
         sudo apt update
-        sudo apt install -y cmake gcc-arm-none-eabi libnewlib-arm-none-eabi build-essential
+        sudo apt install -y cmake gcc-arm-none-eabi libnewlib-arm-none-eabi build-essential git
 
-    # Хак: переназначаем пины под RP2040-Zero (2, 3, 4, 5) прямо перед компиляцией
+    # Скачиваем официальный пакет разработки Pico SDK отдельно, чтобы CMake не ругался
+    - name: Fetch Pico SDK
+      run: |
+        git clone --depth 1 --recursive https://github.com $HOME/pico-sdk
+
+    # Исправленный хак: меняем пины (18, 20, 21, 22) на новые (2, 3, 4, 5) во всех файлах проекта
     - name: Remap Pins for RP2040-Zero
       run: |
-        sed -i 's/#define PICO_AUDIO_I2S_DATA_PIN.*/#define PICO_AUDIO_I2S_DATA_PIN (2)/g' src/pico_audio_i2s_config.h || true
-        sed -i 's/#define PICO_AUDIO_I2S_LROUT_PIN.*/#define PICO_AUDIO_I2S_LROUT_PIN (3)/g' src/pico_audio_i2s_config.h || true
-        sed -i 's/#define PICO_AUDIO_I2S_BCLK_PIN.*/#define PICO_AUDIO_I2S_BCLK_PIN (4)/g' src/pico_audio_i2s_config.h || true
-        sed -i 's/#define PICO_AUDIO_I2S_MCLK_PIN.*/#define PICO_AUDIO_I2S_MCLK_PIN (5)/g' src/pico_audio_i2s_config.h || true
-        
+        # Ищем любые упоминания стандартных пинов в коде и заменяем их на наши
         find . -name "*.h" -type f -exec sed -i 's/GPIO18/2/g' {} + || true
         find . -name "*.h" -type f -exec sed -i 's/GPIO20/3/g' {} + || true
         find . -name "*.h" -type f -exec sed -i 's/GPIO21/4/g' {} + || true
         find . -name "*.h" -type f -exec sed -i 's/GPIO22/5/g' {} + || true
+        
+        # Точечно правим дефолтные макросы в конфигурациях, если они заданы цифрами
+        find . -name "*.h" -type f -exec sed -i 's/PICO_AUDIO_I2S_DATA_PIN.*/PICO_AUDIO_I2S_DATA_PIN (2)/g' {} + || true
+        find . -name "*.h" -type f -exec sed -i 's/PICO_AUDIO_I2S_LROUT_PIN.*/PICO_AUDIO_I2S_LROUT_PIN (3)/g' {} + || true
+        find . -name "*.h" -type f -exec sed -i 's/PICO_AUDIO_I2S_BCLK_PIN.*/PICO_AUDIO_I2S_BCLK_PIN (4)/g' {} + || true
+        find . -name "*.h" -type f -exec sed -i 's/PICO_AUDIO_I2S_MCLK_PIN.*/PICO_AUDIO_I2S_MCLK_PIN (5)/g' {} + || true
 
+    # Запускаем сборку, передавая CMake путь к скачанному SDK
     - name: Run CMake and Build
       run: |
         mkdir build
         cd build
-        cmake ..
+        cmake -DPICO_SDK_PATH=$HOME/pico-sdk ..
         make -j$(nproc)
 
     - name: Upload UF2 Firmware
