@@ -17,17 +17,12 @@ jobs:
       with:
         submodules: 'recursive'
 
-    - name: Install dependencies
+    - name: Install compiler
       run: |
         sudo apt update
-        sudo apt install -y cmake gcc-arm-none-eabi libnewlib-arm-none-eabi build-essential git
+        sudo apt install -y cmake gcc-arm-none-eabi libnewlib-arm-none-eabi build-essential
 
-    # Ссылка исправлена на полную и рабочую
-    - name: Fetch Pico SDK
-      run: |
-        git clone --depth 1 --recursive https://github.com $HOME/pico-sdk
-
-    # Меняем пины на новые (2, 3, 4, 5)
+    # Хак: автоматически меняем пины на новые (2, 3, 4, 5) во всех файлах проекта
     - name: Remap Pins for RP2040-Zero
       run: |
         find . -name "*.h" -type f -exec sed -i 's/GPIO18/2/g' {} + || true
@@ -40,11 +35,12 @@ jobs:
         find . -name "*.h" -type f -exec sed -i 's/PICO_AUDIO_I2S_BCLK_PIN.*/PICO_AUDIO_I2S_BCLK_PIN (4)/g' {} + || true
         find . -name "*.h" -type f -exec sed -i 's/PICO_AUDIO_I2S_MCLK_PIN.*/PICO_AUDIO_I2S_MCLK_PIN (5)/g' {} + || true
 
+    # Сборщик сам скачает нужный Pico SDK через флаг FETCH_FROM_GIT
     - name: Run CMake and Build
       run: |
         mkdir build
         cd build
-        cmake -DPICO_SDK_PATH=$HOME/pico-sdk ..
+        cmake -DPICO_SDK_FETCH_FROM_GIT=on ..
         make -j$(nproc)
 
     - name: Upload UF2 Firmware
